@@ -6,7 +6,7 @@ on:
 
 jobs:
   build-and-push:
-    runs-on: debian-12-slim
+    runs-on: debian-12
     permissions:
       contents: read
       packages: write
