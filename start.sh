@@ -14,9 +14,8 @@ PLUGIN_DIR="$BACKEND_DIR/plugins"
 mkdir -p "$PLUGIN_DIR"
 
 HF_BUCKET_HANDLE="hf://buckets/smodusermc/digpvp"
-SAVE_DIRS="world world_nether world_the_end players banned-ips.json banned-players.json ops.json whitelist.json plugins/WorldGuard plugins/Shopkeepers plugins/MineResetLite plugins/SafeTrade plugins/Skript plugins/WorldEdit plugins/PvPManager"
+SAVE_DIRS="world world_nether world_the_end players banned-ips.json banned-players.json ops.json whitelist.json plugins/WorldGuard plugins/Shopkeepers plugins/MineResetLite plugins/SafeTrade plugins/Skript plugins/WorldEdit plugins/PvPManager plugins/HolographicDisplays"SYNC_INTERVAL="${SYNC_INTERVAL:-300}"
 SYNC_INTERVAL="${SYNC_INTERVAL:-300}"
-
 IDLE_MODE=false
 
 # =============================================
@@ -878,26 +877,76 @@ echo "   Skript config written"
 # ---- PVP core script ----
 cat > "$PLUGIN_DIR/Skript/scripts/pvp-core.sk" << 'PVPSKEOF'
 # ============================
-#  PVP Core — kills, streaks
+#  PVP Core — Kills, Penalties, & Downgrades
 # ============================
 
-on death of player:
-    attacker is a player
-    add 1 to {kills::%attacker%}
-    add 1 to {deaths::%victim%}
-    set {lastKill::%attacker%} to now
-    send "&c&l☠ &e%victim% &7was slain by &c%attacker% &7(&e%{kills::%attacker%}% kills&7)" to all players
+command /setcustomspawn:
+    permission: op
+    trigger:
+        set {serverSpawn} to player's location
+        set spawn of world "world" to player's location
+        send "&a&lExact spawn point set! Players will now spawn EXACTLY here." to player
 
 on death of player:
-    attacker is a player
-    add 1 to {streak::%attacker%}
-    if {streak::%attacker%} is 5:
-        send "&6&l⚔ %attacker% &eis on a &c&l5 KILL STREAK!" to all players
-    if {streak::%attacker%} is 10:
-        send "&6&l⚔ %attacker% &eis on a &4&l10 KILL STREAK!" to all players
+    # 1. Update Streaks
+    if attacker is a player:
+        set {deathsInARow::%attacker%} to 0
+        add 1 to {kills::%attacker%}
+        send "&c&l☠ &e%victim% &7was slain by &c%attacker% &7(&e%{kills::%attacker%}% kills&7)" to all players
+    
+    add 1 to {deathsInARow::%victim%}
 
-on death of player:
-    set {streak::%victim%} to 0
+    # 2. Drop Ores & Currency on the ground (Keep Gear)
+    loop all items in victim's inventory:
+        if loop-item is coal or iron ore or gold ore or lapis lazuli or redstone or diamond or emerald or cobblestone or stone:
+            drop loop-item at victim's location
+            remove loop-item from victim's inventory
+
+    # 3. XP Floor Logic (Drop to the bottom of their tier)
+    set {_lvl} to victim's level
+    if {_lvl} >= 26:
+        set victim's level to 26
+    else if {_lvl} >= 11:
+        set victim's level to 11
+    else:
+        set victim's level to 0
+
+    # 4. Downgrade Gear Logic (5 Deaths in a row)
+    if {deathsInARow::%victim%} >= 5:
+        set {deathsInARow::%victim%} to 0
+        send "&c&l☠ You died 5 times in a row! Your gear was downgraded!" to victim
+        
+        # Downgrade Helmet
+        if victim's helmet is diamond helmet:
+            set victim's helmet to iron helmet
+        else if victim's helmet is iron helmet or chainmail helmet:
+            set victim's helmet to leather helmet
+            
+        # Downgrade Chestplate
+        if victim's chestplate is diamond chestplate:
+            set victim's chestplate to iron chestplate
+        else if victim's chestplate is iron chestplate or chainmail chestplate:
+            set victim's chestplate to leather chestplate
+            
+        # Downgrade Leggings
+        if victim's leggings is diamond leggings:
+            set victim's leggings to iron leggings
+        else if victim's leggings is iron leggings or chainmail leggings:
+            set victim's leggings to leather leggings
+            
+        # Downgrade Boots
+        if victim's boots is diamond boots:
+            set victim's boots to iron boots
+        else if victim's boots is iron boots or chainmail boots:
+            set victim's boots to leather boots
+            
+        # Downgrade Pickaxe
+        if victim has a diamond pickaxe:
+            remove all diamond pickaxes from victim's inventory
+            give iron pickaxe to victim
+        else if victim has an iron pickaxe:
+            remove all iron pickaxes from victim's inventory
+            give stone pickaxe to victim
 
 command /stats [<player>]:
     trigger:
@@ -915,18 +964,28 @@ command /stats [<player>]:
         send "&8&m                              "
 
 on respawn:
+    if {serverSpawn} is set:
+        set respawn location to {serverSpawn}
     wait 1 tick
-    give player wooden sword named "&7Starter Sword"
-    give player wooden pickaxe named "&7Starter Pickaxe"
-    give player 8 of cooked beef named "&6Steak"
+    if {serverSpawn} is set:
+        teleport player to {serverSpawn}
+    if player does not have a sword:
+        give player wooden sword named "&7Starter Sword"
+    if player does not have a pickaxe:
+        give player wooden pickaxe named "&7Starter Pickaxe"
 
 on first join:
+    wait 1 tick
+    if {serverSpawn} is set:
+        teleport player to {serverSpawn}
     give player wooden sword named "&7Starter Sword"
     give player wooden pickaxe named "&7Starter Pickaxe"
     give player 8 of cooked beef named "&6Steak"
-    send "&a&lWelcome to the PVP Server!" to player
+    send "&a&lWelcome to the DigPvP!" to player
     send "&7Use &e/stats &7to check your kills and deaths." to player
     send "&7Use &e/trade <player> &7to trade items safely." to player
+    send "&7How to play:&7 Mine in the beginner zone to get ores." to player
+    send "Buy weapons, tools, armor and more for PVP and mining." to player
 
 on join:
     set join message to "&8[&a+&8] &7%player%"
@@ -936,8 +995,25 @@ on quit:
 
 command /spawn:
     trigger:
+        # 1. Check if they are in combat
+        if {combatTag::%player%} is set:
+            if difference between now and {combatTag::%player%} is less than 15 seconds:
+                send "&c&lERROR! &7You cannot use /spawn while in combat!" to player
+                stop
+        
+        # 2. Start the 3-second timer
+        send "&eTeleporting in 3 seconds... Do not move!" to player
+        set {_loc} to player's location
+        wait 3 seconds
+        
+        # 3. Check if they moved
+        if distance between player's location and {_loc} > 0.5:
+            send "&cTeleport cancelled because you moved!" to player
+            stop
+            
+        # 4. Teleport them safely
         teleport player to spawn of world "world"
-        send "&aTeleported to spawn!"
+        send "&aTeleported to spawn!" to player
 PVPSKEOF
 echo "   Skript pvp-core.sk written"
 
@@ -965,6 +1041,17 @@ on quit:
     difference between now and {combatTag::%player%} is less than 15 seconds
     kill player
     broadcast "&c%player% combat logged and was killed!"
+
+on region enter:
+    # Make sure to replace "spawn" with the exact name of your WorldGuard safezone!
+    if "%region%" contains "spawn":
+        if {combatTag::%player%} is set:
+            if difference between now and {combatTag::%player%} is less than 15 seconds:
+                # This creates the physical barrier / forcefield bounce
+                cancel event
+                push player horizontally backward at speed 1.5
+                push player upwards at speed 0.3
+                send "&c&l⚔ &7You cannot enter the Safezone while in combat!" to player
 
 every 1 second:
     loop all players:
