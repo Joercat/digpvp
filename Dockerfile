@@ -87,6 +87,10 @@ RUN mkdir -p /opt/server/backend/cache && \
 
 COPY plugins/ /opt/server/backend/plugins/
 
+# Copy the icon into both the Bungee and Backend folders
+COPY server-icon.png /opt/server/bungee/server-icon.png
+COPY server-icon.png /opt/server/backend/server-icon.png
+
 # EaglerXBungee
 COPY config/bungee/EaglerXBungee.jar /opt/server/bungee/plugins/EaglerXBungee.jar
 
