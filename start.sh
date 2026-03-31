@@ -1223,17 +1223,15 @@ patch_eagler_port
 # === NEW: MOTD AND ICON PATCH ===
 LISTENERS_NOW=$(find_listeners_yml)
 if [ -n "$LISTENERS_NOW" ]; then
-    # This adds the randomizing characters (&k) at the start and end of the title
-    # &k!!&r makes the exclamation marks cycle randomly, then &r stops the randomization
-    sed -i 's/An EaglercraftX server/&6&k!!&r &6&l⚔ DIG PVP ⚔ &6&k!!&r &7- &eBoxPvP/g' "$LISTENERS_NOW"
-    
-    # You can also add it to the subtitle if you want
-    sed -i 's/EaglercraftX proxy/&a&k#&r &fMine ores, buy gear, fight! &a&k#&r/g' "$LISTENERS_NOW"
+    # Title: &k!!&r &6&l⚔ DIG PVP ⚔ &r&6&k!!&r
+    # Subtitle: &r&7Mine ores, buy gear, fight!
+    sed -i 's/An EaglercraftX server/\&k!!\&r \&6\&l⚔ DIG PVP ⚔ \&r\&6\&k!!\&r/g' "$LISTENERS_NOW"
+    sed -i 's/EaglercraftX proxy/\&r\&7Mine ores, buy gear, fight!/g' "$LISTENERS_NOW"
 fi
 
 # Copy the server icon from your HuggingFace bucket to BungeeCord
 if [ -f "$BACKEND_DIR/server-icon.png" ]; then
-    cp -f "$BACKEND_DIR/server-icon.png" "$BUNGEE_DIR/server-icon.png"
+    cp -f /opt/server/bungee/server-icon.png "$BUNGEE_DIR/server-icon.png"
 fi
 # ================================
 
