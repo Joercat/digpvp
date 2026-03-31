@@ -441,7 +441,7 @@ settings:
   stop-notify-bungee: true
   anti-malware: true
   use-tcp-nodelay: true
-  brand-name: "&6&lDIG PVP"
+  brand-name: "PVP"
 EOF
 
 setup_op_account
@@ -1223,17 +1223,12 @@ patch_eagler_port
 # === NEW: MOTD AND ICON PATCH ===
 LISTENERS_NOW=$(find_listeners_yml)
 if [ -n "$LISTENERS_NOW" ]; then
-sed -i "s/server_motd: \[.*/server_motd: [\"\&k!!\&r \&6\&l⚔ DIG PVP ⚔ \&r\&6\&k!!\&r\", \"\&r\&7Mine ores, buy gear, fight!\"]/g" "$LISTENERS_NOW"
+    # Title: &k!!&r &6&l⚔ DIG PVP ⚔ &r&6&k!!&r
+    # Subtitle: &r&7Mine ores, buy gear, fight!
+    sed -i 's/An EaglercraftX server/\&k!!\&r \&6\&l⚔ DIG PVP ⚔ \&r\&6\&k!!\&r/g' "$LISTENERS_NOW"
+    sed -i 's/EaglercraftX proxy/\&r\&7Mine ores, buy gear, fight!/g' "$LISTENERS_NOW"
 fi
-# === NEW: SETTINGS.YML PATCH ===
-SETTINGS_FILE=$(find "$BUNGEE_DIR/plugins" -name "settings.yml" -type f 2>/dev/null | head -1)
-if [ -n "$SETTINGS_FILE" ]; then
-    # This replaces the default "EaglercraftXBungee Server" name
-    sed -i "s/server_name: 'EaglercraftXBungee Server'/server_name: '&6&l⚔ DIG PVP ⚔'/g" "$SETTINGS_FILE"
-    
-    # This also fixes the brand name that shows up in F3 / Tab menu
-    sed -i "s/brand_name: 'EaglercraftXBungee'/brand_name: 'DIG PVP'/g" "$SETTINGS_FILE"
-fi
+
 # Copy the server icon from your HuggingFace bucket to BungeeCord
 if [ -f "$BACKEND_DIR/server-icon.png" ]; then
     cp -f /opt/server/bungee/server-icon.png "$BUNGEE_DIR/server-icon.png"
