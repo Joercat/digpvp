@@ -418,7 +418,8 @@ settings:
   reduced-chunk-loads: true
   lag-compensated-potions: false
   anti-xray:
-    enabled: false
+    enabled: true
+    engine-mode: 2
   hit-detection:
     enabled: true
     threshold: 1.0
@@ -989,6 +990,11 @@ on first join:
 
 on join:
     set join message to "&8[&a+&8] &7%player%"
+    wait 5 ticks
+    if {serverSpawn} is set:
+        teleport player to {serverSpawn}
+    else:
+        teleport player to spawn of world "world"
 
 on quit:
     set quit message to "&8[&c-&8] &7%player%"
@@ -1042,16 +1048,27 @@ on quit:
     kill player
     broadcast "&c%player% combat logged and was killed!"
 
-on region enter:
-    # Make sure to replace "spawn" with the exact name of your WorldGuard safezone!
-    if "%region%" contains "spawn":
+on region exit:
+    # Check if the region they are trying to leave is one of the 3 mines
+    if "%region%" contains "beginnermine" or "promine" or "expertmine":
+        
+        # Check if they are in combat
         if {combatTag::%player%} is set:
             if difference between now and {combatTag::%player%} is less than 15 seconds:
-                # This creates the physical barrier / forcefield bounce
+                
+                # 1. Cancel their exit (Rubberbands them back inside)
                 cancel event
-                push player horizontally backward at speed 1.5
-                push player upwards at speed 0.3
-                send "&c&l⚔ &7You cannot enter the Safezone while in combat!" to player
+                
+                # 2. Push them backward (Knocks them off the ladder/exit back into the pit)
+                push player horizontally backward at speed 1.0
+                
+                # 3. Anti-Spam Message
+                if {spamCooldown::%player%} is not set:
+                    send "&c&l⚔ &7You cannot escape the mine while in combat!" to player
+                    set {spamCooldown::%player%} to now
+                else if difference between now and {spamCooldown::%player%} is greater than 2 seconds:
+                    send "&c&l⚔ &7You cannot escape the mine while in combat!" to player
+                    set {spamCooldown::%player%} to now
 
 every 1 second:
     loop all players:
@@ -1064,44 +1081,49 @@ echo "   Skript combat-tag.sk written"
 cat > "$PLUGIN_DIR/Skript/scripts/zones.sk" << 'ZONEEOF'
 on region enter:
     # -----------------------------
-    # 1. THE BEGINNER MINE (Max Lvl 10)
+    # 1. THE BEGINNER MINE (0-20)
     # -----------------------------
     if "%region%" contains "beginnermine":
-        # Check if they are over level 10
-        if player's level > 10:
+        if player's level > 20:
             cancel event
-            send "&c&lLOCKED! &7You are over Level 10. You must use the Pro Mine!" to player
-        
-        # Check if they are wearing Iron, Diamond, or Emerald (Leather/Gold is allowed)
-        if player is wearing iron helmet or iron chestplate or iron leggings or iron boots:
+            send "&c&lLOCKED! &7You are over Level 20. Use the Pro or Expert Mine!"
+            stop
+
+        # Simplified Armor Check
+        if player is wearing any iron armor or diamond armor:
             cancel event
-            send "&c&lLOCKED! &7Your armor is too strong for the Beginner Mine!" to player
-        if player is wearing diamond helmet or diamond chestplate or diamond leggings or diamond boots:
-            cancel event
-            send "&c&lLOCKED! &7Your armor is too strong for the Beginner Mine!" to player
+            send "&c&lLOCKED! &7Your armor is too strong for the Beginner Mine!"
+            stop
 
     # -----------------------------
-    # 2. THE PRO MINE (Max Lvl 25)
+    # 2. THE PRO MINE (21-50)
     # -----------------------------
     if "%region%" contains "promine":
-        # Check if they are over level 25
-        if player's level > 25:
+        # If level is 20 or less, they stay in beginner
+        if player's level <= 20:
             cancel event
-            send "&c&lLOCKED! &7You are over Level 25. You must use the Expert Mine!" to player
+            send "&c&lLOCKED! &7You must be Level 21+ for the Pro Mine!"
+            stop
             
-        # Check if they are wearing Diamond or Emerald (Chainmail/Iron is allowed)
-        if player is wearing diamond helmet or diamond chestplate or diamond leggings or diamond boots:
+        # If level is 51 or more, they go to expert
+        if player's level > 50:
             cancel event
-            send "&c&lLOCKED! &7Your armor is too strong for the Pro Mine!" to player
+            send "&c&lLOCKED! &7You are over Level 50. Use the Expert Mine!"
+            stop
+
+        if player is wearing any diamond armor:
+            cancel event
+            send "&c&lLOCKED! &7Your armor is too strong for the Pro Mine!"
+            stop
 
     # -----------------------------
-    # 3. THE EXPERT MINE (Level 26+)
+    # 3. THE EXPERT MINE (51+)
     # -----------------------------
     if "%region%" contains "expertmine":
-        # Check if they are under level 26
-        if player's level < 26:
+        if player's level <= 50:
             cancel event
-            send "&c&lLOCKED! &7You need to be Level 26+ to enter the Expert Mine!" to player
+            send "&c&lLOCKED! &7You need to be Level 51+ to enter!"
+            
 ZONEEOF
 echo "   Skript spawn-protect.sk written"
 
